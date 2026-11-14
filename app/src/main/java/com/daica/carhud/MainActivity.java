@@ -266,6 +266,7 @@ public class MainActivity extends Activity implements LocationListener, TpmsMana
         tpms.connect();
         refreshAll();
         checkOsmDns();
+        checkUpdateQuiet();
         h.removeCallbacks(ticker);
         h.post(ticker);
     }
@@ -1207,7 +1208,48 @@ public class MainActivity extends Activity implements LocationListener, TpmsMana
         space(c4, 10);
         String ver = "";
         try { ver = getPackageManager().getPackageInfo(getPackageName(), 0).versionName; } catch (Exception ignored) {}
+        c4.addView(wide(updateAvail > 0 ? "⬇  Có bản mới, bấm để cập nhật" : "Kiểm tra / cập nhật app", updateAvail > 0, new View.OnClickListener() {
+            public void onClick(View v) { settingsDlg.dismiss(); doUpdate(); } }));
+        space(c4, 8);
         c4.addView(txt("Màn xe " + ver, 12, Theme.sub(), false));
+    }
+
+    // ---------- cập nhật app qua mạng ----------
+    private int updateAvail = 0;
+
+    /** Kiểm tra ngầm mỗi lần mở app (tối đa 1 lần / 6 giờ); có bản mới thì báo nhẹ. */
+    private void checkUpdateQuiet() {
+        if (System.currentTimeMillis() - prefs.getLong("updChk", 0) < 6 * 3600000L) return;
+        prefs.edit().putLong("updChk", System.currentTimeMillis()).apply();
+        bg.execute(new Runnable() { public void run() {
+            try {
+                final int v = Updater.latestVersionCode();
+                if (v > Updater.currentVersionCode(MainActivity.this)) h.post(new Runnable() { public void run() {
+                    updateAvail = v; toast("Có bản app mới, vào Cài đặt › Hệ thống để cập nhật"); } });
+            } catch (Exception ignored) {}
+        } });
+    }
+
+    private void doUpdate() {
+        final AlertDialog dlg = new AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
+                .setTitle("Cập nhật app").setMessage("Đang kiểm tra bản mới…").setCancelable(false)
+                .setNegativeButton("Đóng", null).show();
+        bg.execute(new Runnable() { public void run() {
+            try {
+                int latest = Updater.latestVersionCode(), cur = Updater.currentVersionCode(MainActivity.this);
+                if (latest <= cur) { msg(dlg, "Đang dùng bản mới nhất rồi (bản " + (cur - 100) + ")."); return; }
+                msg(dlg, "Đang tải bản " + (latest - 100) + "…");
+                final java.io.File f = Updater.download(MainActivity.this, new Updater.Progress() {
+                    public void on(int pc) { msg(dlg, "Đang tải bản mới… " + pc + "%"); } });
+                h.post(new Runnable() { public void run() { dlg.dismiss(); Updater.install(MainActivity.this, f); } });
+            } catch (final Exception e) {
+                msg(dlg, "Không cập nhật được: " + e.getMessage() + "\n\nKiểm tra mạng, hoặc kho GitHub chưa để Công khai.");
+            }
+        } });
+    }
+
+    private void msg(final AlertDialog d, final String s) {
+        h.post(new Runnable() { public void run() { if (d.isShowing()) d.setMessage(s); } });
     }
 
     private void setThreshold(float v) {

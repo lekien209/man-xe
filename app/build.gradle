@@ -6,8 +6,8 @@ android {
         applicationId "com.daica.carhud"
         minSdk 22
         targetSdk 22
-        versionCode 4
-        versionName "1.4"
+        versionCode((System.getenv("GITHUB_RUN_NUMBER") ?: "4").toInteger() + 100)
+        versionName "1.4.b" + (System.getenv("GITHUB_RUN_NUMBER") ?: "0")
     }
     buildTypes {
         release { minifyEnabled false; signingConfig signingConfigs.debug }
