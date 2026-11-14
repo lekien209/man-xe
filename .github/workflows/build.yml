@@ -17,8 +17,18 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-      - name: Tai chung chi ISRG cho Android 6
-        run: mkdir -p app/src/main/assets/certs && curl -sSL https://letsencrypt.org/certs/isrgrootx1.pem -o app/src/main/assets/certs/isrgrootx1.pem
+      - name: Chung chi goc cho Android 6 (ISRG + chuoi chung chi GitHub va cac may chu app dung)
+        run: |
+          D=app/src/main/assets/certs; mkdir -p $D
+          curl -sSL https://letsencrypt.org/certs/isrgrootx1.pem -o $D/isrgrootx1.pem
+          curl -sSL https://letsencrypt.org/certs/isrg-root-x2.pem -o $D/isrgrootx2.pem
+          for host in github.com api.github.com release-assets.githubusercontent.com objects.githubusercontent.com \
+                      tile.openstreetmap.org a.tile.openstreetmap.fr nominatim.openstreetmap.org photon.komoot.io \
+                      router.project-osrm.org api.open-meteo.com; do
+            echo | openssl s_client -connect $host:443 -servername $host -showcerts 2>/dev/null \
+              | awk -v d=$D -v h=$host '/BEGIN CERTIFICATE/{n++; f=d"/"h"-"n".pem"} n>1{print > f} /END CERTIFICATE/{close(f)}' || true
+          done
+          ls -l $D
       - name: Build
         run: gradle assembleDebug --no-daemon
       - name: Dat ten file
