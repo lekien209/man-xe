@@ -1188,7 +1188,7 @@ public class MainActivity extends Activity implements LocationListener, TpmsMana
         c3.addView(wide("Chọn màn hình nhạc khác", false, new View.OnClickListener() { public void onClick(View v) { settingsDlg.dismiss(); pickBtScreen(); } }));
         space(c3, 8);
         boolean perm = MusicController.hasPermission(this);
-        c3.addView(wide(perm ? "✓ Đã cho phép đọc tên bài" : "Cho phép đọc tên bài hát", !perm, new View.OnClickListener() { public void onClick(View v) {
+        c3.addView(wide(perm ? "✓ Đã cho phép đọc tên bài" : "⚠ Cho phép đọc tên bài hát", false, new View.OnClickListener() { public void onClick(View v) {
             settingsDlg.dismiss(); openNotifAccess(); } }));
 
         // ---- Hệ thống ----
