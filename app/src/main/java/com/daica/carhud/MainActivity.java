@@ -111,6 +111,9 @@ public class MainActivity extends Activity implements LocationListener, TpmsMana
     private int mapStyle = 0;  // 0 OSM chuẩn, 1 OSM HOT
     private boolean osmBlocked = false;
     private ToneGenerator tone;
+    private boolean isResumed = false;
+    private boolean btSourceDone = false; // đã chuyển nguồn nhạc Bluetooth trong chuyến này
+    private boolean switching = false;
     private final boolean[] wasLow = new boolean[4];
 
     // ======================================================================
@@ -150,6 +153,8 @@ public class MainActivity extends Activity implements LocationListener, TpmsMana
         mc = new MusicController(this, this);
         music.mc = mc;
         loadTires();
+        if (prefs.getBoolean("autoBt", true)) h.postDelayed(new Runnable() {
+            public void run() { if (!btSourceDone && isResumed) switchBtSource(false); } }, 15000);
         try {
             String d = prefs.getString("dest", null);
             if (d != null && d.length() > 2) pendingDest = new JSONObject(d);
@@ -219,7 +224,11 @@ public class MainActivity extends Activity implements LocationListener, TpmsMana
         };
         music.actions = new MusicView.Actions() {
             public void onPrev() { mc.prev(); }
-            public void onPlayPause() { mc.playPause(); }
+            public void onPlayPause() {
+                // lần đầu bấm phát trong chuyến: chuyển màn sang nguồn nhạc Bluetooth trước
+                if (!btSourceDone && !mc.playing && prefs.getBoolean("autoBt", true)) switchBtSource(true);
+                else mc.playPause();
+            }
             public void onNext() { mc.next(); }
             public void onNeedPermission() { openNotifAccess(); }
         };
@@ -248,6 +257,7 @@ public class MainActivity extends Activity implements LocationListener, TpmsMana
     @Override
     protected void onResume() {
         super.onResume();
+        isResumed = true;
         AnimView.resumeAll();
         map.onResume();
         startLocation();
@@ -262,6 +272,7 @@ public class MainActivity extends Activity implements LocationListener, TpmsMana
 
     @Override
     protected void onPause() {
+        isResumed = false;
         AnimView.running = false;
         map.onPause();
         h.removeCallbacks(ticker);
@@ -381,7 +392,12 @@ public class MainActivity extends Activity implements LocationListener, TpmsMana
         boolean ch = gps != top.gps || net != top.net || bt != top.bt || !nn.equals(top.netName) || tpms.connected != top.tpms;
         top.gps = gps; top.net = net; top.netName = nn; top.bt = bt; top.tpms = tpms.connected;
         if (ch) top.invalidate();
-        if (bt != music.btConnected) { music.btConnected = bt; music.invalidate(); }
+        if (bt != music.btConnected) {
+            // iPhone vừa nối -> tự chuyển nguồn sang nhạc Bluetooth (mỗi chuyến 1 lần)
+            if (bt && !btSourceDone && isResumed && prefs.getBoolean("autoBt", true)) h.postDelayed(new Runnable() {
+                public void run() { if (!btSourceDone && isResumed) switchBtSource(false); } }, 3000);
+            music.btConnected = bt; music.invalidate();
+        }
     }
 
     private boolean btConnected() {
@@ -719,6 +735,98 @@ public class MainActivity extends Activity implements LocationListener, TpmsMana
         updateStatus();
     }
 
+    /** Mở nhanh màn hình nhạc của app Bluetooth gốc để màn chuyển sang nguồn nhạc Bluetooth, rồi quay về. */
+    private void switchBtSource(final boolean thenPlay) {
+        if (switching) return;
+        Intent t = BtAudio.targetIntent(this, prefs);
+        if (t == null) {
+            toast("Không tìm thấy app Bluetooth. Vào Cài đặt > Nhạc Bluetooth để chọn.");
+            if (thenPlay) mc.playPause();
+            return;
+        }
+        switching = true;
+        btSourceDone = true;
+        try {
+            t.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_NO_ANIMATION);
+            startActivity(t);
+        } catch (Exception e) {
+            switching = false;
+            prefs.edit().remove("btPkg").remove("btCls").apply();
+            toast("Không mở được màn hình nhạc Bluetooth");
+            if (thenPlay) mc.playPause();
+            return;
+        }
+        h.postDelayed(new Runnable() {
+            public void run() {
+                // nếu app Bluetooth chưa tự phát thì gửi lệnh phát
+                if (thenPlay && !mc.playing) mc.playPause();
+                Intent back = new Intent(MainActivity.this, MainActivity.class)
+                        .addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_NO_ANIMATION);
+                startActivity(back);
+                switching = false;
+            }
+        }, prefs.getInt("btDelay", 1800));
+    }
+
+    private void showMusicSettings() {
+        boolean auto = prefs.getBoolean("autoBt", true);
+        String[] items = {
+                "Thử chuyển sang nhạc Bluetooth ngay",
+                "Tự chuyển nguồn khi nổ máy / khi bấm phát: " + (auto ? "Bật" : "Tắt"),
+                "Chọn màn hình nhạc của app Bluetooth (đang dùng: " + BtAudio.describe(this, prefs) + ")",
+                "Thời gian chờ chuyển nguồn: " + String.format(Locale.US, "%.1f", prefs.getInt("btDelay", 1800) / 1000f).replace('.', ',') + " giây",
+                "Cho phép đọc tên bài hát" + (MusicController.hasPermission(this) ? " (đã bật)" : " (chưa bật)")};
+        new AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
+                .setTitle("Nhạc Bluetooth")
+                .setItems(items, new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface d, int w) {
+                        switch (w) {
+                            case 0: btSourceDone = false; switchBtSource(true); break;
+                            case 1: prefs.edit().putBoolean("autoBt", !prefs.getBoolean("autoBt", true)).apply();
+                                toast(prefs.getBoolean("autoBt", true) ? "Đã bật tự chuyển nguồn nhạc" : "Đã tắt tự chuyển nguồn nhạc"); break;
+                            case 2: pickBtScreen(); break;
+                            case 3: {
+                                final String[] o = {"1 giây", "1,8 giây (mặc định)", "3 giây", "5 giây"};
+                                final int[] v = {1000, 1800, 3000, 5000};
+                                pick("Thời gian chờ", o, 1, new Pick() { public void on(int i) { prefs.edit().putInt("btDelay", v[i]).apply(); } });
+                                break;
+                            }
+                            case 4: openNotifAccess(); break;
+                        }
+                    }
+                }).setNegativeButton("Đóng", null).show();
+    }
+
+    /** Cho đại ca chọn đúng màn hình nhạc nếu app tự tìm sai. Liệt kê mọi màn hình mở được của app Bluetooth. */
+    private void pickBtScreen() {
+        final List<BtAudio.Target> all = new ArrayList<>();
+        PackageManager pm = getPackageManager();
+        for (ResolveInfo r : BtAudio.findBtApps(this)) {
+            String app = String.valueOf(r.loadLabel(pm));
+            for (BtAudio.Target t : BtAudio.listActivities(this, r.activityInfo.packageName)) {
+                t.label = app + " › " + t.label;
+                all.add(t);
+            }
+        }
+        if (all.isEmpty()) {
+            showText("Dò app Bluetooth", "Không thấy app nào tên có chữ Bluetooth.\nChụp màn hình mục Ứng dụng (9 chấm) gửi em để em thêm vào.");
+            return;
+        }
+        String[] labels = new String[all.size() + 1];
+        labels[0] = "Tự tìm (mặc định)";
+        for (int i = 0; i < all.size(); i++) labels[i + 1] = all.get(i).label;
+        new AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
+                .setTitle("Chọn màn hình có nút phát nhạc (♪ là gợi ý)")
+                .setItems(labels, new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface d, int w) {
+                        if (w == 0) prefs.edit().remove("btPkg").remove("btCls").apply();
+                        else prefs.edit().putString("btPkg", all.get(w - 1).pkg).putString("btCls", all.get(w - 1).cls).apply();
+                        btSourceDone = false;
+                        switchBtSource(true);
+                    }
+                }).setNegativeButton("Đóng", null).show();
+    }
+
     private void openNotifAccess() {
         try {
             startActivity(new Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"));
@@ -963,44 +1071,243 @@ public class MainActivity extends Activity implements LocationListener, TpmsMana
 
     // ======================================================================
     // Cài đặt
+    // ======================================================================
+    // Bảng cài đặt: 4 nhóm thẻ chia 2 cột, nút to dễ bấm khi ngồi trong xe
+    private android.app.Dialog settingsDlg;
+    private LinearLayout settingsBody;
+
     private void showSettings() {
-        final String[] modes = {"Tự động theo giờ mặt trời", "Luôn ban ngày", "Luôn ban đêm"};
-        final String[] styles = {"OpenStreetMap chuẩn", "OpenStreetMap nhân đạo (màu nhẹ)"};
-        boolean auto = prefs.getBoolean("autostart", true);
-        String[] items = {
-                "Màu xe: " + Theme.CAR_NAMES[prefs.getInt("car", 0)],
-                "Cảnh báo khi áp suất dưới: " + String.format(Locale.US, "%.1f", scene.threshold).replace('.', ',') + " bar",
-                "Giao diện: " + modes[themeMode],
-                "Kiểu bản đồ: " + styles[mapStyle],
-                "Cho phép đọc tên bài hát" + (MusicController.hasPermission(this) ? " (đã bật)" : ""),
-                "Ghép cảm biến lốp / đổi vị trí lốp",
-                "Kết nối lại cảm biến áp suất",
-                "Tự mở app khi khởi động xe: " + (auto ? "Bật" : "Tắt"),
-                "Đặt làm màn hình chính",
-                "Mở Cài đặt của màn",
-                "Thoát app"};
-        new AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
-                .setTitle("Cài đặt")
-                .setItems(items, new DialogInterface.OnClickListener() {
-                    public void onClick(DialogInterface d, int w) {
-                        switch (w) {
-                            case 0: pickCarColor(); break;
-                            case 1: pickThreshold(); break;
-                            case 2: pick("Giao diện", modes, themeMode, new Pick() { public void on(int i) {
-                                themeMode = i; prefs.edit().putInt("theme", i).apply(); lastDay = !computeDay(); h.removeCallbacks(ticker); h.post(ticker); } }); break;
-                            case 3: pick("Kiểu bản đồ", styles, mapStyle, new Pick() { public void on(int i) {
-                                mapStyle = i; prefs.edit().putInt("mapStyle", i).apply(); applyTiles(); nav.invalidate(); } }); break;
-                            case 4: openNotifAccess(); break;
-                            case 5: showPairing(); break;
-                            case 6: tpms.close(); tpms.connect(); toast("Đang kết nối lại đầu thu…"); break;
-                            case 7: prefs.edit().putBoolean("autostart", !prefs.getBoolean("autostart", true)).apply();
-                                toast(prefs.getBoolean("autostart", true) ? "Đã bật tự mở khi khởi động" : "Đã tắt tự mở khi khởi động"); break;
-                            case 8: setAsHome(); break;
-                            case 9: try { startActivity(new Intent(Settings.ACTION_SETTINGS)); } catch (Exception ignored) {} break;
-                            case 10: confirmExit(); break;
-                        }
-                    }
-                }).show();
+        if (settingsDlg == null) {
+            settingsDlg = new android.app.Dialog(this, android.R.style.Theme_Translucent_NoTitleBar_Fullscreen);
+            FrameLayout dim = new FrameLayout(this);
+            dim.setBackgroundColor(0xB3000000);
+            dim.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { settingsDlg.dismiss(); } });
+            LinearLayout panel = new LinearLayout(this);
+            panel.setOrientation(LinearLayout.VERTICAL);
+            panel.setClickable(true);
+            panel.setPadding(dp(22), dp(16), dp(22), dp(16));
+            settingsBody = panel;
+            android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
+            FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(Math.round(dm.widthPixels * 0.88f), Math.round(dm.heightPixels * 0.9f), Gravity.CENTER);
+            dim.addView(panel, lp);
+            settingsDlg.setContentView(dim);
+        }
+        buildSettings();
+        settingsDlg.show();
+        if (settingsDlg.getWindow() != null) settingsDlg.getWindow().getDecorView().setSystemUiVisibility(
+                View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
+    }
+
+    private void buildSettings() {
+        LinearLayout p = settingsBody;
+        p.removeAllViews();
+        p.setBackground(round(Theme.panel(), 18, 0));
+
+        // tiêu đề
+        LinearLayout head = new LinearLayout(this);
+        head.setGravity(Gravity.CENTER_VERTICAL);
+        TextView t = txt("Cài đặt", 24, Theme.text(), true);
+        head.addView(t, new LinearLayout.LayoutParams(0, -2, 1));
+        TextView close = txt("✕", 22, Theme.sub(), false);
+        close.setGravity(Gravity.CENTER);
+        close.setBackground(round(Theme.panel2(), 20, 0));
+        close.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { settingsDlg.dismiss(); } });
+        head.addView(close, new LinearLayout.LayoutParams(dp(40), dp(40)));
+        p.addView(head);
+        space(p, 12);
+
+        android.widget.ScrollView sv = new android.widget.ScrollView(this);
+        LinearLayout cols = new LinearLayout(this);
+        LinearLayout left = new LinearLayout(this), right = new LinearLayout(this);
+        left.setOrientation(LinearLayout.VERTICAL);
+        right.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout.LayoutParams cl = new LinearLayout.LayoutParams(0, -2, 1);
+        cols.addView(left, cl);
+        View gap = new View(this);
+        cols.addView(gap, new LinearLayout.LayoutParams(dp(14), 1));
+        cols.addView(right, new LinearLayout.LayoutParams(0, -2, 1));
+        sv.addView(cols);
+        p.addView(sv, new LinearLayout.LayoutParams(-1, 0, 1));
+
+        // ---- Giao diện ----
+        LinearLayout c1 = card(left, "🎨", "Giao diện");
+        label(c1, "Màu xe · " + Theme.CAR_NAMES[prefs.getInt("car", 0)]);
+        LinearLayout dots = new LinearLayout(this);
+        for (int i = 0; i < Theme.CAR_COLORS.length; i++) {
+            final int idx = i;
+            View d = new View(this);
+            boolean sel = prefs.getInt("car", 0) == i;
+            d.setBackground(oval(Theme.CAR_COLORS[i][0], sel ? Theme.ACCENT : 0x33FFFFFF, sel ? dp(3) : dp(1)));
+            d.setOnClickListener(new View.OnClickListener() { public void onClick(View v) {
+                prefs.edit().putInt("car", idx).apply(); Theme.setCar(idx); scene.invalidate(); buildSettings(); } });
+            LinearLayout.LayoutParams dl = new LinearLayout.LayoutParams(dp(30), dp(30));
+            dl.rightMargin = dp(7);
+            dots.addView(d, dl);
+        }
+        c1.addView(dots);
+        space(c1, 12);
+        label(c1, "Ngày / đêm");
+        c1.addView(seg(new String[]{"Tự động", "Ngày", "Đêm"}, themeMode, new Pick() { public void on(int i) {
+            themeMode = i; prefs.edit().putInt("theme", i).apply(); lastDay = !computeDay(); h.removeCallbacks(ticker); h.post(ticker);
+            h.postDelayed(new Runnable() { public void run() { buildSettings(); } }, 150); } }));
+        space(c1, 12);
+        label(c1, "Bản đồ");
+        c1.addView(seg(new String[]{"OSM chuẩn", "OSM màu nhẹ"}, mapStyle, new Pick() { public void on(int i) {
+            mapStyle = i; prefs.edit().putInt("mapStyle", i).apply(); applyTiles(); nav.invalidate(); buildSettings(); } }));
+
+        // ---- Áp suất lốp ----
+        LinearLayout c2 = card(left, "◉", "Áp suất lốp");
+        LinearLayout th = new LinearLayout(this);
+        th.setGravity(Gravity.CENTER_VERTICAL);
+        th.addView(txt("Cảnh báo khi dưới", 16, Theme.text(), false), new LinearLayout.LayoutParams(0, -2, 1));
+        th.addView(pill("−", false, new View.OnClickListener() { public void onClick(View v) { setThreshold(scene.threshold - 0.1f); } }), new LinearLayout.LayoutParams(dp(44), dp(40)));
+        TextView tv = txt(String.format(Locale.US, "%.1f bar", scene.threshold).replace('.', ','), 18, Theme.ACCENT, true);
+        tv.setGravity(Gravity.CENTER);
+        th.addView(tv, new LinearLayout.LayoutParams(dp(86), -2));
+        th.addView(pill("+", false, new View.OnClickListener() { public void onClick(View v) { setThreshold(scene.threshold + 0.1f); } }), new LinearLayout.LayoutParams(dp(44), dp(40)));
+        c2.addView(th);
+        space(c2, 10);
+        TextView st = txt(tpms.connected ? "● Đầu thu đã kết nối" : "● Chưa thấy đầu thu", 14, tpms.connected ? Theme.ACCENT : Theme.RED, false);
+        c2.addView(st);
+        space(c2, 10);
+        c2.addView(wide("Ghép cảm biến / đổi vị trí lốp", true, new View.OnClickListener() { public void onClick(View v) { settingsDlg.dismiss(); showPairing(); } }));
+        space(c2, 8);
+        c2.addView(wide("Kết nối lại đầu thu", false, new View.OnClickListener() { public void onClick(View v) {
+            tpms.close(); tpms.connect(); toast("Đang kết nối lại đầu thu…"); h.postDelayed(new Runnable() { public void run() { if (settingsDlg.isShowing()) buildSettings(); } }, 1500); } }));
+
+        // ---- Nhạc Bluetooth ----
+        LinearLayout c3 = card(right, "🎵", "Nhạc Bluetooth");
+        toggleRow(c3, "Tự chuyển nguồn nhạc khi nổ máy", prefs.getBoolean("autoBt", true), new Pick() { public void on(int i) {
+            prefs.edit().putBoolean("autoBt", i == 1).apply(); buildSettings(); } });
+        space(c3, 6);
+        c3.addView(txt("App nhạc: " + BtAudio.describe(this, prefs), 13, Theme.sub(), false));
+        space(c3, 10);
+        c3.addView(wide("▶  Chuyển sang nhạc Bluetooth ngay", true, new View.OnClickListener() { public void onClick(View v) {
+            settingsDlg.dismiss(); btSourceDone = false; switchBtSource(true); } }));
+        space(c3, 8);
+        c3.addView(wide("Chọn màn hình nhạc khác", false, new View.OnClickListener() { public void onClick(View v) { settingsDlg.dismiss(); pickBtScreen(); } }));
+        space(c3, 8);
+        boolean perm = MusicController.hasPermission(this);
+        c3.addView(wide(perm ? "✓ Đã cho phép đọc tên bài" : "Cho phép đọc tên bài hát", !perm, new View.OnClickListener() { public void onClick(View v) {
+            settingsDlg.dismiss(); openNotifAccess(); } }));
+
+        // ---- Hệ thống ----
+        LinearLayout c4 = card(right, "⚙", "Hệ thống");
+        toggleRow(c4, "Tự mở app khi khởi động xe", prefs.getBoolean("autostart", true), new Pick() { public void on(int i) {
+            prefs.edit().putBoolean("autostart", i == 1).apply(); buildSettings(); } });
+        space(c4, 10);
+        LinearLayout r1 = new LinearLayout(this);
+        r1.addView(wide("Đặt làm màn hình chính", false, new View.OnClickListener() { public void onClick(View v) { settingsDlg.dismiss(); setAsHome(); } }), new LinearLayout.LayoutParams(0, -2, 1));
+        space(r1, 8);
+        r1.addView(wide("Cài đặt máy", false, new View.OnClickListener() { public void onClick(View v) {
+            settingsDlg.dismiss(); try { startActivity(new Intent(Settings.ACTION_SETTINGS)); } catch (Exception ignored) {} } }), new LinearLayout.LayoutParams(0, -2, 1));
+        c4.addView(r1);
+        space(c4, 8);
+        c4.addView(wide("Thoát app", false, new View.OnClickListener() { public void onClick(View v) { settingsDlg.dismiss(); confirmExit(); } }));
+        space(c4, 10);
+        String ver = "";
+        try { ver = getPackageManager().getPackageInfo(getPackageName(), 0).versionName; } catch (Exception ignored) {}
+        c4.addView(txt("Màn xe " + ver, 12, Theme.sub(), false));
+    }
+
+    private void setThreshold(float v) {
+        v = Math.round(Math.max(1.4f, Math.min(3.0f, v)) * 10) / 10f;
+        scene.threshold = v;
+        prefs.edit().putFloat("threshold", v).apply();
+        scene.invalidate();
+        buildSettings();
+    }
+
+    // ---- các khối giao diện dùng chung ----
+    private android.graphics.drawable.GradientDrawable round(int fill, float r, int stroke) {
+        android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable();
+        g.setColor(fill);
+        g.setCornerRadius(dp(r));
+        if (stroke != 0) g.setStroke(dp(1.5f), stroke);
+        return g;
+    }
+
+    private android.graphics.drawable.GradientDrawable oval(int fill, int stroke, int sw) {
+        android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable();
+        g.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+        g.setColor(fill);
+        g.setStroke(sw, stroke);
+        return g;
+    }
+
+    private TextView txt(String s, float sp, int col, boolean bold) {
+        TextView t = new TextView(this);
+        t.setText(s);
+        t.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp);
+        t.setTextColor(col);
+        if (bold) t.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        return t;
+    }
+
+    private void space(LinearLayout l, int d) {
+        View v = new View(this);
+        l.addView(v, l.getOrientation() == LinearLayout.VERTICAL ? new LinearLayout.LayoutParams(1, dp(d)) : new LinearLayout.LayoutParams(dp(d), 1));
+    }
+
+    private void label(LinearLayout l, String s) {
+        TextView t = txt(s, 14, Theme.sub(), false);
+        t.setPadding(0, 0, 0, dp(6));
+        l.addView(t);
+    }
+
+    private LinearLayout card(LinearLayout col, String icon, String title) {
+        LinearLayout c = new LinearLayout(this);
+        c.setOrientation(LinearLayout.VERTICAL);
+        c.setBackground(round(Theme.panel2(), 14, 0));
+        c.setPadding(dp(16), dp(12), dp(16), dp(14));
+        TextView h = txt(icon + "  " + title, 17, Theme.text(), true);
+        h.setPadding(0, 0, 0, dp(10));
+        c.addView(h);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+        lp.bottomMargin = dp(14);
+        col.addView(c, lp);
+        return c;
+    }
+
+    private TextView pill(String s, boolean on, View.OnClickListener cl) {
+        TextView t = txt(s, 16, on ? 0xFF0E1116 : Theme.text(), on);
+        t.setGravity(Gravity.CENTER);
+        t.setBackground(round(on ? Theme.ACCENT : Theme.panel(), 10, on ? 0 : Theme.alpha(Theme.sub(), 0.35f)));
+        t.setOnClickListener(cl);
+        return t;
+    }
+
+    private TextView wide(String s, boolean primary, View.OnClickListener cl) {
+        TextView t = txt(s, 15, primary ? 0xFF0E1116 : Theme.text(), primary);
+        t.setGravity(Gravity.CENTER);
+        t.setPadding(dp(10), dp(11), dp(10), dp(11));
+        t.setBackground(round(primary ? Theme.ACCENT : Theme.panel(), 10, primary ? 0 : Theme.alpha(Theme.sub(), 0.35f)));
+        t.setOnClickListener(cl);
+        return t;
+    }
+
+    private LinearLayout seg(String[] opts, int sel, final Pick cb) {
+        LinearLayout l = new LinearLayout(this);
+        l.setBackground(round(Theme.panel(), 10, 0));
+        l.setPadding(dp(3), dp(3), dp(3), dp(3));
+        for (int i = 0; i < opts.length; i++) {
+            final int idx = i;
+            TextView t = txt(opts[i], 15, i == sel ? 0xFF0E1116 : Theme.text(), i == sel);
+            t.setGravity(Gravity.CENTER);
+            t.setPadding(0, dp(9), 0, dp(9));
+            if (i == sel) t.setBackground(round(Theme.ACCENT, 8, 0));
+            t.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { cb.on(idx); } });
+            l.addView(t, new LinearLayout.LayoutParams(0, -2, 1));
+        }
+        return l;
+    }
+
+    private void toggleRow(LinearLayout c, String s, boolean on, final Pick cb) {
+        LinearLayout r = new LinearLayout(this);
+        r.setGravity(Gravity.CENTER_VERTICAL);
+        r.addView(txt(s, 16, Theme.text(), false), new LinearLayout.LayoutParams(0, -2, 1));
+        r.addView(seg(new String[]{"Tắt", "Bật"}, on ? 1 : 0, cb), new LinearLayout.LayoutParams(dp(120), -2));
+        c.addView(r);
     }
 
     private interface Pick { void on(int i); }

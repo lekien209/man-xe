@@ -6,8 +6,8 @@ android {
         applicationId "com.daica.carhud"
         minSdk 22
         targetSdk 22
-        versionCode 1
-        versionName "1.0"
+        versionCode 4
+        versionName "1.4"
     }
     buildTypes {
         release { minifyEnabled false; signingConfig signingConfigs.debug }
