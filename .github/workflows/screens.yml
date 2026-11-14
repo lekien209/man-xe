@@ -20,10 +20,9 @@ jobs:
       - run: gradle assembleDebug --no-daemon
       - uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 23
+          api-level: 28
           arch: x86_64
           target: google_apis
-          profile: Nexus 7
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -skin 1024x600
           disable-animations: true
           script: bash .github/shots.sh
