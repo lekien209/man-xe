@@ -1,0 +1,50 @@
+11-14 14:16:55.721  4765  4765 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-14 14:16:55.779  4765  4765 D AndroidRuntime: Calling main entry com.android.commands.input.Input
+11-14 14:16:55.786  4765  4765 D AndroidRuntime: Shutting down VM
+11-14 14:16:55.986  1987  2015 V BackupManagerService: restoreAtInstall pkg=com.daica.carhud token=1 restoreSet=0
+11-14 14:16:56.022  2149  4272 W GCM     : Unexpected forwarded intent: Intent { act=android.intent.action.PACKAGE_ADDED dat=package:com.daica.carhud flg=0x4000010 cmp=com.google.android.gms/.chimera.PersistentIntentOperationService (has extras) }
+11-14 14:16:56.022  2149  4277 W GCM     : Unexpected forwarded intent: Intent { act=android.intent.action.PACKAGE_ADDED dat=package:com.daica.carhud flg=0x4000010 cmp=com.google.android.gms/.chimera.PersistentIntentOperationService (has extras) }
+11-14 14:16:56.034  2253  2253 D ImsResolver: maybeAddedImsService, packageName: com.daica.carhud
+11-14 14:16:56.043  2567  4396 I ChromeSync: [Sync,SyncIntentOperation] Handling the intent: Intent { act=android.intent.action.PACKAGE_ADDED dat=package:com.daica.carhud flg=0x4000010 cmp=com.google.android.gms/.chimera.GmsIntentOperationService (has extras) }.
+11-14 14:16:56.044  2567  4283 I FontLog : Package com.daica.carhud has no metadata [CONTEXT service_id=132 ]
+11-14 14:16:56.047  2567  4396 I ChromeSync: [Persistence,AffiliationManager] One of affiliation or grouping data for android://7GdAbGJ94h8Q2bYP-PeQI7Q99yF8jcarkuU6CL1c3KxQFk2QpJR3SqMZlxf78tE1UyBnQVdW8O6lwm4TxzpZLg==@com.daica.carhud/ was not found. Marking affiliation data as stale...
+11-14 14:16:56.111  1987  4029 I ActivityManager: START u0 {flg=0x10000000 cmp=com.daica.carhud/.MainActivity} from uid 2000
+11-14 14:16:56.321  1987  2004 I ActivityManager: Start proc 4810:com.daica.carhud/u0a86 for activity com.daica.carhud/.MainActivity
+11-14 14:16:56.442  4810  4810 I StorageUtils: /data/user/0/com.daica.carhud/files is writable
+11-14 14:16:56.444  4810  4810 I StorageUtils: /storage/emulated/0/Android/data/com.daica.carhud/files is writable
+11-14 14:16:56.444  4810  4810 I StorageUtils: /data/user/0/com.daica.carhud/files is writable
+11-14 14:16:56.444  4810  4810 I StorageUtils: /storage/emulated/0/Android/data/com.daica.carhud/files is writable
+11-14 14:16:57.457  1987  2010 I ActivityManager: Displayed com.daica.carhud/.MainActivity: +1s150ms
+11-14 14:16:57.469  1938  2057 W SurfaceFlinger: Attempting to set client state on removed layer: Splash Screen com.daica.carhud#0
+11-14 14:16:57.469  1938  2057 W SurfaceFlinger: Attempting to destroy on removed layer: Splash Screen com.daica.carhud#0
+11-14 14:17:09.994  1987  4061 W BroadcastQueue: Background execution not allowed: receiving Intent { act=android.intent.action.PACKAGE_ADDED dat=package:com.daica.carhud flg=0x4000010 (has extras) } to com.android.musicfx/.Compatibility$Receiver
+11-14 14:17:09.994  1987  2002 W BroadcastQueue: Background execution not allowed: receiving Intent { act=android.intent.action.PACKAGE_ADDED dat=package:com.daica.carhud flg=0x4000010 (has extras) } to com.google.android.gms/.games.chimera.GamesSystemBroadcastReceiverProxy
+11-14 14:17:09.994  1987  2002 W BroadcastQueue: Background execution not allowed: receiving Intent { act=android.intent.action.PACKAGE_ADDED dat=package:com.daica.carhud flg=0x4000010 (has extras) } to com.google.android.gms/.gass.chimera.PackageChangeBroadcastReceiver
+11-14 14:17:09.994  1987  2002 W BroadcastQueue: Background execution not allowed: receiving Intent { act=android.intent.action.PACKAGE_ADDED dat=package:com.daica.carhud flg=0x4000010 (has extras) } to com.google.android.gms/.chimera.GmsIntentOperationService$PersistentTrustedReceiver
+11-14 14:17:09.994  1987  2002 W BroadcastQueue: Background execution not allowed: receiving Intent { act=android.intent.action.PACKAGE_ADDED dat=package:com.daica.carhud flg=0x4000010 (has extras) } to com.google.android.googlequicksearchbox/com.google.android.apps.gsa.googlequicksearchbox.GelStubAppWatcher
+11-14 14:17:09.994  1987  2002 W BroadcastQueue: Background execution not allowed: receiving Intent { act=android.intent.action.PACKAGE_ADDED dat=package:com.daica.carhud flg=0x4000010 (has extras) } to com.google.android.ims/.receivers.RcsAutoStartReceiver
+11-14 14:17:11.507  5505  5505 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-14 14:17:11.539  5505  5505 D AndroidRuntime: Calling main entry com.android.commands.input.Input
+11-14 14:17:11.576  5505  5505 D AndroidRuntime: Shutting down VM
+11-14 14:17:11.593  1938  1938 D SurfaceFlinger: duplicate layer name: changing com.daica.carhud/com.daica.carhud.MainActivity to com.daica.carhud/com.daica.carhud.MainActivity#1
+11-14 14:17:11.654  3028  3028 I LatinIme: onActivate() : EditorInfo = Package = com.daica.carhud : Type = Text : Learning = Disable : Suggestion = Show : AutoCorrection = Disable : Microphone = Show : Incognito = Disable
+11-14 14:17:11.972  3028  3028 W Conv2QueryExtension: Conv2Query not enabled due to current app [com.daica.carhud] not in whitelist
+11-14 14:17:13.631  4810  4835 I chatty  : uid=10086(com.daica.carhud) RenderThread identical 18 lines
+11-14 14:17:15.743  5535  5535 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-14 14:17:15.774  5535  5535 D AndroidRuntime: Calling main entry com.android.commands.input.Input
+11-14 14:17:15.840  5535  5535 D AndroidRuntime: Shutting down VM
+11-14 14:17:16.383  4810  4835 I chatty  : uid=10086(com.daica.carhud) RenderThread identical 1 line
+11-14 14:17:16.939  5551  5551 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-14 14:17:16.969  5551  5551 D AndroidRuntime: Calling main entry com.android.commands.input.Input
+11-14 14:17:16.972  5551  5551 D AndroidRuntime: Shutting down VM
+11-14 14:17:18.375  4810  4835 I chatty  : uid=10086(com.daica.carhud) RenderThread identical 2 lines
+11-14 14:17:19.390  4810  4835 I chatty  : uid=10086(com.daica.carhud) RenderThread identical 2 lines
+11-14 14:17:21.446  4810  4835 I chatty  : uid=10086(com.daica.carhud) RenderThread identical 4 lines
+11-14 14:17:22.695  4810  4835 I chatty  : uid=10086(com.daica.carhud) RenderThread identical 5 lines
+11-14 14:17:23.405  4810  4835 I chatty  : uid=10086(com.daica.carhud) RenderThread identical 6 lines
+11-14 14:17:25.146  5606  5606 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-14 14:17:25.173  5606  5606 D AndroidRuntime: Calling main entry com.android.commands.input.Input
+11-14 14:17:25.184  5606  5606 D AndroidRuntime: Shutting down VM
+11-14 14:17:25.701  4810  4835 I chatty  : uid=10086(com.daica.carhud) RenderThread identical 3 lines
+11-14 14:17:26.519  4810  4835 I chatty  : uid=10086(com.daica.carhud) RenderThread identical 3 lines
+11-14 14:17:26.636  4810  4835 I chatty  : uid=10086(com.daica.carhud) RenderThread identical 1 line
