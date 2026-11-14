@@ -26,9 +26,9 @@ jobs:
                       tile.openstreetmap.org a.tile.openstreetmap.fr nominatim.openstreetmap.org photon.komoot.io \
                       router.project-osrm.org api.open-meteo.com; do
             echo | openssl s_client -connect $host:443 -servername $host -showcerts 2>/dev/null \
-              | awk -v d=$D -v h=$host '/BEGIN CERTIFICATE/{n++; f=d"/"h"-"n".pem"} n>1{print > f} /END CERTIFICATE/{close(f)}' || true
+              | awk -v d=$D -v h=$host '/BEGIN CERTIFICATE/{n++; on=1; f=d"/"h"-"n".pem"} on && n>1{print >> f} /END CERTIFICATE/{on=0}' || true
           done
-          ls -l $D
+          rm -f $D/*-1.pem; ls -l $D; grep -L 'END CERTIFICATE' $D/*.pem && exit 1 || true
       - name: Build
         run: gradle assembleDebug --no-daemon
       - name: Dat ten file
