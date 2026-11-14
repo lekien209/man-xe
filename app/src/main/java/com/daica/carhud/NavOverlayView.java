@@ -25,6 +25,7 @@ public class NavOverlayView extends View {
     public boolean hasRoute = false, following = true;
     public String instr = "", road = "", etaMain = "", etaSub = "", msg = null, attrib = "© OpenStreetMap";
     public NavHelper.Step step;
+    private RectF pressed = null; // nút đang được chạm (vẽ sáng lên)
 
     // vùng nút (toạ độ thiết kế) để bắt chạm
     private final RectF bSearch = new RectF(), bCancel = new RectF(), bCenter = new RectF(), bZin = new RectF(), bZout = new RectF();
@@ -38,7 +39,8 @@ public class NavOverlayView extends View {
         float s = s(), H = getHeight() / s;
         c.save();
         c.scale(s, s);
-        bSearch.setEmpty(); bCancel.setEmpty(); bCenter.setEmpty();
+        if (!hasRoute) { /* bSearch đặt lại bên dưới */ } else bSearch.setEmpty();
+        bCancel.setEmpty(); bCenter.setEmpty();
 
         if (hasRoute) {
             // thẻ chỉ dẫn
@@ -70,6 +72,7 @@ public class NavOverlayView extends View {
             r.set(10, 10, W - 10, 58);
             card(c, r);
             bSearch.set(r);
+            if (pressed == bSearch) { p.setColor(Theme.alpha(Theme.ACCENT, 0.25f)); c.drawRoundRect(r, 14, 14, p); }
             p.setStyle(Paint.Style.STROKE); p.setStrokeWidth(2.4f); p.setColor(Theme.ACCENT);
             c.drawCircle(34, 32, 8, p); c.drawLine(40, 38, 46, 44, p);
             p.setStyle(Paint.Style.FILL);
@@ -123,6 +126,7 @@ public class NavOverlayView extends View {
         p.setStyle(Paint.Style.FILL);
         p.setColor(0x33000000); c.drawCircle(b.centerX(), b.centerY() + 2, 21, p);
         p.setColor(Theme.alpha(Theme.panel(), 0.96f)); c.drawCircle(b.centerX(), b.centerY(), 21, p);
+        if (pressed != null && pressed.equals(b)) { p.setColor(Theme.alpha(Theme.ACCENT, 0.35f)); c.drawCircle(b.centerX(), b.centerY(), 21, p); }
     }
 
     /** Mũi tên rẽ trong ô 56x56 tâm (x,y), màu tối trên nền xanh. */
@@ -189,23 +193,44 @@ public class NavOverlayView extends View {
         c.restore();
     }
 
+    private RectF downHit = null;
+
     @Override
     public boolean onTouchEvent(MotionEvent e) {
         float s = s();
         float x = e.getX() / s, y = e.getY() / s;
-        RectF hit = null;
-        if (bSearch.contains(x, y)) hit = bSearch;
-        else if (hit(bCancel, x, y)) hit = bCancel;
-        else if (hit(bCenter, x, y)) hit = bCenter;
-        else if (hit(bZin, x, y)) hit = bZin;
-        else if (hit(bZout, x, y)) hit = bZout;
-        if (hit == null) return false; // để bản đồ nhận thao tác kéo/chụm
-        if (e.getActionMasked() == MotionEvent.ACTION_UP && actions != null) {
-            if (hit == bSearch) actions.onSearch();
-            else if (hit == bCancel) actions.onCancelRoute();
-            else if (hit == bCenter) actions.onRecenter();
-            else if (hit == bZin) actions.onZoom(true);
-            else if (hit == bZout) actions.onZoom(false);
+        int act = e.getActionMasked();
+        if (act == MotionEvent.ACTION_DOWN) {
+            downHit = null;
+            // ô tìm kiếm: nới rộng vùng chạm cho màn cảm ứng kém nhạy
+            if (!hasRoute && x > 4 && x < W - 4 && y > 0 && y < 70) downHit = bSearch;
+            else if (hit(bCancel, x, y)) downHit = bCancel;
+            else if (hit(bCenter, x, y)) downHit = bCenter;
+            else if (hit(bZin, x, y)) downHit = bZin;
+            else if (hit(bZout, x, y)) downHit = bZout;
+            if (downHit == null) return false; // để bản đồ nhận kéo/chụm
+            pressed = downHit;
+            invalidate();
+            return true;
+        }
+        if (downHit == null) return false;
+        if (act == MotionEvent.ACTION_UP) {
+            RectF h = downHit;
+            downHit = null;
+            pressed = null;
+            invalidate();
+            playSoundEffect(android.view.SoundEffectConstants.CLICK);
+            if (actions != null) {
+                if (h == bSearch) actions.onSearch();
+                else if (h == bCancel) actions.onCancelRoute();
+                else if (h == bCenter) actions.onRecenter();
+                else if (h == bZin) actions.onZoom(true);
+                else if (h == bZout) actions.onZoom(false);
+            }
+        } else if (act == MotionEvent.ACTION_CANCEL) {
+            downHit = null;
+            pressed = null;
+            invalidate();
         }
         return true;
     }
